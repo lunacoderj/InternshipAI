@@ -244,14 +244,19 @@ app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) =>
 
         // Trigger asynchronous email report
         if (uniqueResults.length > 0) {
-            console.log(`[MAIL] Dispatching manual report to: ${req.user.email}`);
+            console.log(`[MAIL] Dispatching manual report to: ${req.user.email} (${uniqueResults.length} matches)`);
             sendReportEmail(req.user.email, uniqueResults.slice(0, 50), userData.preferences)
-                .then(async () => {
-                    await userRef.update({
-                        'stats.totalSent': admin.firestore.FieldValue.increment(1)
-                    });
+                .then(async (res) => {
+                    if (res && res.error) {
+                        console.error(`[MAIL] Dispatch failed: ${res.error}`);
+                    } else {
+                        console.log(`[MAIL] Dispatch successful: ${res?.id || 'OK'}`);
+                        await userRef.update({
+                            'stats.totalSent': admin.firestore.FieldValue.increment(1)
+                        });
+                    }
                 })
-                .catch(err => console.error('[MAIL] Failed to send manual report:', err));
+                .catch(err => console.error('[MAIL] Fatal error during manual report dispatch:', err.message || err));
         }
     } catch (error) {
         console.error('Manual scrape error:', error.message || error);

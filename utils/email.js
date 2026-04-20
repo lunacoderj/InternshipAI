@@ -68,9 +68,8 @@ async function sendReportEmail(email, results, prefs) {
         </div>
     `;
 
-    try {
         return await resend.emails.send({
-            from: 'InternAlert <reports@resend.dev>', // Use resend.dev for test mode or your verified domain
+            from: process.env.EMAIL_FROM || 'InternAlert <radar@internai.jaggu.me>',
             to: email,
             subject: `🚀 ${results.length} New Opportunities Found — InternAlert`,
             html: html,
@@ -99,7 +98,7 @@ async function sendTestEmail(email) {
 
     try {
         return await resend.emails.send({
-            from: 'InternAlert <reports@resend.dev>',
+            from: process.env.EMAIL_FROM || 'InternAlert <radar@internai.jaggu.me>',
             to: email,
             subject: '✅ InternAlert Account Synced!',
             html: html,

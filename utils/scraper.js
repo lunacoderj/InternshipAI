@@ -52,13 +52,29 @@ async function runUserScrape(apiKey, prefs = {}) {
     
     // Map lookback to Apify timeRange
     const lookback = prefs.lookback || '24h';
-    let timeRange = '';
+    let timeRange = 'd'; // Default to last day
+    let hoursThreshold = 24;
+    
     const lbLower = lookback.toLowerCase();
-    if (lbLower.includes('hr') || lbLower.includes('day')) {
-        if (lbLower.includes('30 days')) timeRange = 'month';
-        else if (lbLower.includes('day') || lbLower.includes('24')) timeRange = 'day';
-        else timeRange = 'day'; // Default for hours
+    if (lbLower.includes('hr')) {
+        const h = parseInt(lbLower);
+        hoursThreshold = isNaN(h) ? 24 : h;
+        if (hoursThreshold <= 1) timeRange = 'h'; // Last hour
+        else timeRange = 'd'; // Google doesn't have h6/h12 in the standard 'day' actor range, so we use 'day' + post-filter
+    } else if (lbLower.includes('day')) {
+        if (lbLower.includes('30')) {
+            timeRange = 'm';
+            hoursThreshold = 720;
+        } else {
+            timeRange = 'd';
+            hoursThreshold = 48;
+        }
+    } else if (lbLower.includes('week')) {
+        timeRange = 'w';
+        hoursThreshold = 168;
     }
+    
+    console.log(`[SCRAPER] Lookback: ${lookback} -> Range: ${timeRange}, Max Age: ${hoursThreshold}h`);
     
     console.log(`[SCRAPER] Using lookback: ${lookback} -> timeRange: ${timeRange}`);
 
@@ -141,7 +157,7 @@ async function runUserScrape(apiKey, prefs = {}) {
                     console.log(`[DEBUG] First item sample: ${JSON.stringify(rawItems[0]).substring(0, 200)}...`);
                 }
                 
-                results = processScraperResults(rawItems, prefs.resumeText);
+                results = processScraperResults(rawItems, prefs.resumeText, hoursThreshold);
                 console.log(`[SCRAPER] Processing complete. Valid results: ${results.length}`);
             } else if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
                 throw new Error(`Apify run failed: ${statusResponse.data.data.status}`);
@@ -158,7 +174,7 @@ async function runUserScrape(apiKey, prefs = {}) {
 /**
  * Processes raw Apify Google Search results into Internship objects
  */
-function processScraperResults(items, resumeText) {
+function processScraperResults(items, resumeText, maxAgeHours = 24) {
     const processed = [];
     const seenUrls = new Set();
     
@@ -202,6 +218,24 @@ function processScraperResults(items, resumeText) {
                 return;
             }
 
+
+            // Post-processing time filter: Extract relative time from description (e.g., "6 hours ago")
+            if (maxAgeHours < 720) { // Only filter for items up to 1 month
+                const timeMatch = description.match(/(\d+)\s+(hour|day|minute)s?\s+ago/i);
+                if (timeMatch) {
+                    const value = parseInt(timeMatch[1]);
+                    const unit = timeMatch[2].toLowerCase();
+                    let ageHours = value;
+                    
+                    if (unit.includes('day')) ageHours = value * 24;
+                    else if (unit.includes('minute')) ageHours = value / 60;
+                    
+                    if (ageHours > maxAgeHours) {
+                        console.log(`[DEBUG] Filtering out old result (${ageHours}h > ${maxAgeHours}h): ${res.title}`);
+                        return;
+                    }
+                }
+            }
 
             seenUrls.add(res.url);
 
