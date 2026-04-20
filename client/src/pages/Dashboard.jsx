@@ -28,7 +28,7 @@ import {
     Plus,
     ArrowRight
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 
 const StatCard = ({ title, value, icon, color, delay, loading }) => (
     <motion.div 
@@ -132,7 +132,7 @@ const Dashboard = () => {
             if (!isManual) setLoading(true);
             try {
                 const token = await user.getIdToken();
-                const response = await axios.get('/api/user/profile', { 
+                const response = await api.get('/user/profile', { 
                     headers: { Authorization: `Bearer ${token}` },
                     signal: controller.signal
                 });
@@ -150,7 +150,7 @@ const Dashboard = () => {
                     totalSent: response.data.stats?.totalSent || 0
                 });
             } catch (err) {
-                if (axios.isCancel(err)) return;
+                if (err.name === 'CanceledError' || err.name === 'AbortError') return;
                 console.error('Fetch error:', err);
                 triggerToast('error', 'Failed to synchronize data');
             } finally {
@@ -178,7 +178,7 @@ const Dashboard = () => {
     const refetchData = async () => {
         try {
             const token = await user.getIdToken();
-            const response = await axios.get('/api/user/profile', { 
+            const response = await api.get('/user/profile', { 
                 headers: { Authorization: `Bearer ${token}` }
             });
             setProfile(response.data);
@@ -208,7 +208,7 @@ const Dashboard = () => {
 
         try {
             const token = await user.getIdToken();
-            const res = await axios.post('/api/user/scrape-now', {}, {
+            const res = await api.post('/user/scrape-now', {}, {
                 headers: { Authorization: `Bearer ${token}` },
                 timeout: 180000 // 3 minute timeout for deep scraping
             });
@@ -243,7 +243,7 @@ const Dashboard = () => {
         setLoading(true);
         try {
             const token = await user.getIdToken();
-            await axios.post('/api/user/preferences', {
+            await api.post('/user/preferences', {
                 preferences: profile.preferences,
                 isEnabled: profile.isEnabled,
                 scheduleInterval: profile.scheduleInterval

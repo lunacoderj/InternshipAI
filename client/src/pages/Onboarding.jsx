@@ -21,7 +21,7 @@ import {
     Loader2,
     AlertCircle
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 import { ROLES, WORK_PREFERENCES, COUNTRIES, TIME_INTERVALS, LOOKBACK_OPTIONS } from '../constants/options';
 
 const MultiSelect = ({ options, selected, onChange, placeholder, icon: Icon }) => {
@@ -132,7 +132,7 @@ const Onboarding = () => {
             if (!user) return;
             try {
                 const token = await user.getIdToken();
-                const response = await axios.get('/api/user/profile', {
+                const response = await api.get('/user/profile', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (response.data && response.data.preferences?.preferenceSets) {
@@ -232,7 +232,7 @@ const Onboarding = () => {
         setLoading(true);
         try {
             const token = await user.getIdToken();
-            const response = await axios.post('/api/user/preferences', {
+            const response = await api.post('/user/preferences', {
                 apifyKey: apifyKey.trim(),
                 preferences: { 
                     preferenceSets: rows,
@@ -292,7 +292,7 @@ const Onboarding = () => {
         setLoading(true);
         try {
             const token = await user.getIdToken();
-            const response = await axios.post('/api/user/preferences', {
+            const response = await api.post('/user/preferences', {
                 apifyKey: apifyKey.trim(),
                 preferences: { 
                     preferenceSets: finalRows,
@@ -376,7 +376,7 @@ const Onboarding = () => {
                             Master Configuration
                         </h2>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <form onSubmit={(e) => { e.preventDefault(); handleSyncConfig(); }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-2">Apify API Key</label>
                                 <div className="relative">
@@ -387,6 +387,7 @@ const Onboarding = () => {
                                         className="input-field pl-12 h-[56px] font-bold"
                                         value={apifyKey}
                                         onChange={(e) => setApifyKey(e.target.value)}
+                                        autoComplete="current-password"
                                     />
                                 </div>
                                 <p className="text-[9px] text-slate-600 pl-2">Required for the search pulse engine.</p>
@@ -405,22 +406,22 @@ const Onboarding = () => {
                                 </div>
                                 <p className="text-[9px] text-slate-600 pl-2">Helps focus the radar results.</p>
                             </div>
-                        </div>
 
-                        <div className="flex justify-end pt-4 border-t border-white/5">
-                            <button
-                                onClick={handleSyncConfig}
-                                disabled={loading}
-                                className="px-6 h-12 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-xl text-blue-400 text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all disabled:opacity-50"
-                            >
-                                {loading ? 'Syncing...' : (
-                                    <>
-                                        <Zap size={14} className="fill-blue-400" />
-                                        Sync Satellite Configuration
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                            <div className="md:col-span-2 flex justify-end pt-4 border-t border-white/5">
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="px-6 h-12 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-xl text-blue-400 text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all disabled:opacity-50"
+                                >
+                                    {loading ? 'Syncing...' : (
+                                        <>
+                                            <Zap size={14} className="fill-blue-400" />
+                                            Sync Satellite Configuration
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 

@@ -25,7 +25,8 @@ const allowedOrigins = [
     'http://localhost:5173',   // Vite Dev
     'http://localhost:5051',   // Express
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:5051'
+    'http://127.0.0.1:5051',
+    'https://internai.jaggu.me'
 ];
 
 if (process.env.CORS_ORIGIN) {

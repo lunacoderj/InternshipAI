@@ -17,7 +17,7 @@ import {
     Send
 } from 'lucide-react';
 import { sendEmailVerification, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import axios from 'axios';
+import api from '../services/api';
 
 const Profile = () => {
     const { user, logout } = useAuth();
@@ -42,7 +42,7 @@ const Profile = () => {
     const fetchProfile = async () => {
         try {
             const token = await user.getIdToken();
-            const res = await axios.get('http://localhost:3000/api/user/profile', {
+            const res = await api.get('/user/profile', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setProfileData(res.data);
@@ -64,7 +64,7 @@ const Profile = () => {
         try {
             const token = await user.getIdToken();
             // We use the preferences endpoint with current data to trigger a test email
-            await axios.post('http://localhost:3000/api/user/preferences', {
+            await api.post('/user/preferences', {
                 apifyKey: apifyKey,
                 preferences: profileData?.preferences
             }, {
@@ -83,7 +83,7 @@ const Profile = () => {
         setLoading(true);
         try {
             const token = await user.getIdToken();
-            await axios.post('http://localhost:3000/api/user/preferences', {
+            await api.post('/user/preferences', {
                 apifyKey: apifyKey,
                 preferences: profileData?.preferences
             }, {
