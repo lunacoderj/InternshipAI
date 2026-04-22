@@ -231,6 +231,7 @@ const Profile = () => {
                         <p className="text-sm text-slate-400 mb-6">Manage your scraper authentication. Updating this will trigger a verification test email.</p>
 
                         <form onSubmit={handleUpdateApifyKey} className="space-y-4">
+                            <input type="text" name="username" autoComplete="username" value={user?.email || ''} readOnly className="hidden" />
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-2">Apify API Key</label>
                                 <input 
@@ -269,6 +270,7 @@ const Profile = () => {
                         )}
 
                         <form onSubmit={handleSetOrChangePassword} className="space-y-4">
+                            <input type="text" name="username" autoComplete="username" value={user?.email || ''} readOnly className="hidden" />
                             {hasPasswordProvider && (
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-2">Old Password</label>

@@ -377,6 +377,15 @@ const Onboarding = () => {
                         </h2>
                         
                         <form onSubmit={(e) => { e.preventDefault(); handleSyncConfig(); }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Accessibility: Password forms should have a username field */}
+                            <input 
+                                type="text" 
+                                name="username" 
+                                autoComplete="username" 
+                                value={user?.email || ''} 
+                                readOnly 
+                                className="hidden" 
+                            />
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-2">Apify API Key</label>
                                 <div className="relative">
