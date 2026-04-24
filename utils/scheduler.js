@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const admin = require('firebase-admin');
+const admin = require('../lib/firebase-admin');
 const { runUserScrape } = require('./scraper');
 const { sendReportEmail } = require('./email');
 const { decryptKey } = require('./crypto');
@@ -74,15 +74,28 @@ function initScheduler() {
                                 lookback: set.lookback
                             });
 
+                            if (results.length > 0) {
+                                // 2. Send email for this specific set
+                                await sendReportEmail(userData.notificationEmail || userData.email, results, {
+                                    roles: set.roles,
+                                    location: set.locations,
+                                    workTypes: set.workTypes
+                                });
+
+                                // 3. Store results in Firestore so user can see them on dashboard (Fix CORE BUG)
+                                const resultsBatch = db.batch();
+                                results.slice(0, 20).forEach(result => {
+                                    const resultRef = userDoc.ref.collection('results').doc();
+                                    resultsBatch.set(resultRef, {
+                                        ...result,
+                                        storedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                        preferenceSetId: set.id
+                                    });
+                                });
+                                await resultsBatch.commit();
+                            }
                             
-                            // 2. Send email for this specific set
-                            await sendReportEmail(userData.notificationEmail || userData.email, results, {
-                                roles: set.roles,
-                                location: set.locations,
-                                workTypes: set.workTypes
-                            });
-                            
-                            // 3. Update set stats
+                            // 4. Update set stats
                             updatedPreferenceSets[i] = {
                                 ...set,
                                 lastScrapedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -90,7 +103,7 @@ function initScheduler() {
                             };
                             userUpdated = true;
 
-                            console.log(`Successfully completed scrape for ${userData.email} - Set ${set.id}`);
+                            console.log(`Successfully completed scrape for ${userData.email} - Set ${set.id}. Found ${results.length} matches.`);
                         } catch (err) {
                             console.error(`Automation failed for ${userData.email} - Set ${set.id}:`, err.message);
                         }
@@ -113,3 +126,4 @@ function initScheduler() {
 }
 
 module.exports = { initScheduler };
+

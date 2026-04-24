@@ -132,23 +132,38 @@ const Dashboard = () => {
             if (!isManual) setLoading(true);
             try {
                 const token = await user.getIdToken();
-                const response = await api.get('/user/profile', { 
+                
+                // 1. Fetch Profile and Stats
+                const profileRes = await api.get('/user/profile', { 
                     headers: { Authorization: `Bearer ${token}` },
                     signal: controller.signal
                 });
 
                 if (!isMounted) return;
 
-                if (response.data.onboardingRequired) {
+                if (profileRes.data.onboardingRequired) {
                     navigate('/onboarding');
                     return;
                 }
 
-                setProfile(response.data);
+                setProfile(profileRes.data);
                 setStats({
-                    totalScrapes: response.data.stats?.totalScrapes || 0,
-                    totalSent: response.data.stats?.totalSent || 0
+                    totalScrapes: profileRes.data.stats?.totalScrapes || 0,
+                    totalSent: profileRes.data.stats?.totalSent || 0
                 });
+
+                // 2. Fetch Results from Firestore (to include automatic scrapes)
+                const resultsRes = await api.get('/user/results', {
+                    headers: { Authorization: `Bearer ${token}` },
+                    signal: controller.signal
+                });
+
+                if (resultsRes.data && Array.isArray(resultsRes.data)) {
+                    setResults(resultsRes.data);
+                    // Sync to local storage
+                    localStorage.setItem(`results_${user.uid}`, JSON.stringify(resultsRes.data));
+                }
+
             } catch (err) {
                 if (err.name === 'CanceledError' || err.name === 'AbortError') return;
                 console.error('Fetch error:', err);
@@ -159,7 +174,7 @@ const Dashboard = () => {
         };
 
         fetchData();
-        loadLocalResults();
+        // loadLocalResults(); // Redundant now as fetchData handles it from source of truth
 
         return () => {
             isMounted = false;

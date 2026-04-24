@@ -230,12 +230,35 @@ app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) =>
         
         const uniqueResults = Array.from(new Map(allResults.map(item => [item.url, item])).values());
 
-        // Update stats
+        // Update stats and preference set timestamps
         const userRef = admin.firestore().collection('users').doc(req.user.uid);
+        const db = admin.firestore();
+        
+        // Prepare batch updates
+        const resultsBatch = db.batch();
+        
+        // 1. Save top 20 results to Firestore (Fix Issue: results disappearing on reload)
+        uniqueResults.slice(0, 20).forEach(result => {
+            const resultRef = userRef.collection('results').doc();
+            resultsBatch.set(resultRef, {
+                ...result,
+                storedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        // 2. Update preference sets lastScrapedAt to prevent immediate re-trigger by scheduler
+        const updatedPreferenceSets = preferenceSets.map(set => ({
+            ...set,
+            lastScrapedAt: admin.firestore.FieldValue.serverTimestamp()
+        }));
+
         await userRef.update({
+            'preferences.preferenceSets': updatedPreferenceSets,
             'stats.totalScrapes': admin.firestore.FieldValue.increment(1),
             'stats.lastScrape': admin.firestore.FieldValue.serverTimestamp()
         });
+
+        await resultsBatch.commit();
 
         res.json({ 
             message: 'Pulse search completed', 
@@ -247,11 +270,11 @@ app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) =>
         if (uniqueResults.length > 0) {
             console.log(`[MAIL] Dispatching manual report to: ${req.user.email} (${uniqueResults.length} matches)`);
             sendReportEmail(req.user.email, uniqueResults.slice(0, 50), userData.preferences)
-                .then(async (res) => {
-                    if (res && res.error) {
-                        console.error(`[MAIL] Dispatch failed: ${res.error}`);
+                .then(async (emailRes) => {
+                    if (emailRes && emailRes.error) {
+                        console.error(`[MAIL] Dispatch failed: ${emailRes.error}`);
                     } else {
-                        console.log(`[MAIL] Dispatch successful: ${res?.id || 'OK'}`);
+                        console.log(`[MAIL] Dispatch successful: ${emailRes?.id || 'OK'}`);
                         await userRef.update({
                             'stats.totalSent': admin.firestore.FieldValue.increment(1)
                         });
