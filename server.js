@@ -309,4 +309,4 @@ setInterval(async () => {
     } catch (error) {
         console.error('Self-ping failed:', error.message);
     }
-}, 840000);
+}, 21600000);
