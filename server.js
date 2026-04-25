@@ -297,3 +297,16 @@ app.get('/api/health', (req, res) => res.json({
 app.listen(PORT, () => {
     console.log(`[InternAlert] SaaS Engine running on port ${PORT}`);
 });
+
+const axios = require('axios');
+
+// Ping the server every 14 minutes (840000 milliseconds)
+// Free tiers usually sleep after 15 minutes of inactivity
+setInterval(async () => {
+    try {
+        await axios.get("https://internshipai.onrender.com/health-check");
+        console.log('Self-ping successful: Kept server awake');
+    } catch (error) {
+        console.error('Self-ping failed:', error.message);
+    }
+}, 840000);
