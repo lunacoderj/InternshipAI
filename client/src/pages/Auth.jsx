@@ -162,13 +162,12 @@ const Auth = () => {
                         )}
                     </button>
 
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-white/10"></div>
-                        </div>
-                        <div className="relative flex justify-center text-xs text-slate-500">
-                            <span className="bg-[#0b1121] px-4 font-medium">OR CONTINUE WITH EMAIL</span>
-                        </div>
+                    <div className="relative my-8 flex items-center w-full select-none">
+                        <div className="flex-grow h-px bg-gradient-to-r from-transparent to-slate-700/70"></div>
+                        <span className="mx-4 text-[11px] font-bold text-slate-500 tracking-[0.25em] uppercase">
+                            Or continue with email
+                        </span>
+                        <div className="flex-grow h-px bg-gradient-to-l from-transparent to-slate-700/70"></div>
                     </div>
 
                     <form onSubmit={handleEmailAuth} className="space-y-4">
