@@ -74,12 +74,12 @@ const MultiSelect = ({ options, selected, onChange, placeholder, icon: Icon }) =
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="absolute top-full left-0 right-0 mt-2 p-2 glass-panel !rounded-2xl z-50 max-h-[300px] overflow-hidden flex flex-col border-white/5 active-select-dropdown"
                         >
-                            <div className="p-2 border-b border-white/5 flex items-center gap-2">
+                            <div className="p-2 border-b border-slate-200 dark:border-white/5 flex items-center gap-2">
                                 <Search size={14} className="text-slate-500" />
                                 <input 
                                     type="text" 
                                     placeholder="Search options..."
-                                    className="bg-transparent border-none text-xs text-white focus:ring-0 w-full"
+                                    className="bg-transparent border-none text-xs text-slate-800 dark:text-white focus:ring-0 w-full outline-none"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     autoFocus
@@ -94,10 +94,10 @@ const MultiSelect = ({ options, selected, onChange, placeholder, icon: Icon }) =
                                             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition-all text-left mb-1 ${
                                                 selected.includes(opt) 
                                                 ? 'bg-blue-600 text-white' 
-                                                : 'hover:bg-white/5 text-slate-400'
+                                                : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400'
                                             }`}
                                         >
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(opt) ? 'border-white bg-white/20' : 'border-slate-700'}`}>
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(opt) ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'}`}>
                                                 {selected.includes(opt) && <CheckCircle2 size={10} />}
                                             </div>
                                             {opt}
@@ -337,7 +337,7 @@ const Onboarding = () => {
                     >
                         <Zap size={40} className="text-white" fill="white" />
                     </motion.div>
-                    <h1 className="text-6xl font-black text-white tracking-tighter">Radar <span className="text-blue-500">Configuration</span></h1>
+                    <h1 className="text-6xl font-black text-slate-900 dark:text-white tracking-tighter transition-colors">Radar <span className="text-blue-500">Configuration</span></h1>
                     <p className="text-slate-500 text-lg font-medium max-w-xl mx-auto">
                         Define your target internship parameters. Each set creates a distinct search pattern.
                     </p>
@@ -369,9 +369,9 @@ const Onboarding = () => {
                 </AnimatePresence>
 
                 {/* Master Config */}
-                <div className="glass-panel p-10 bg-slate-900/40 border-white/5 relative">
+                <div className="glass-panel p-10 bg-white dark:bg-slate-900/40 border-slate-200 dark:border-white/5 relative transition-colors shadow-xl dark:shadow-none">
                     <div className="space-y-8">
-                        <h2 className="text-xl font-black text-white flex items-center gap-3">
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-3 transition-colors">
                             <Shield className="text-blue-500" />
                             Master Configuration
                         </h2>
@@ -434,10 +434,10 @@ const Onboarding = () => {
                     </div>
                 </div>
 
-                <div className="glass-panel p-10 bg-slate-900/40 border-white/5 relative">
+                <div className="glass-panel p-10 bg-white dark:bg-slate-900/40 border-slate-200 dark:border-white/5 relative transition-colors shadow-xl dark:shadow-none">
                     <div className="space-y-8">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-black text-white flex items-center gap-3">
+                            <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-3 transition-colors">
                                 {isEditing ? <Edit3 className="text-blue-500" /> : <Plus className="text-blue-500" />}
                                 {isEditing ? 'Editing Preference Set' : 'Define New Preference Set'}
                             </h2>
@@ -494,11 +494,11 @@ const Onboarding = () => {
                                 <div className="relative">
                                     <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" />
                                     <select 
-                                        className="input-field pl-12 appearance-none h-[56px] font-bold cursor-pointer transition-all hover:border-blue-500/30"
+                                        className="input-field pl-12 appearance-none h-[56px] font-bold cursor-pointer transition-all hover:border-blue-500/30 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                                         value={currentRow.interval}
                                         onChange={(e) => setCurrentRow({...currentRow, interval: e.target.value})}
                                     >
-                                        {TIME_INTERVALS.map(t => <option key={t} value={t} className="bg-slate-900">{t} Scan Rate</option>)}
+                                        {TIME_INTERVALS.map(t => <option key={t} value={t}>{t} Scan Rate</option>)}
                                     </select>
                                     <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
                                 </div>
@@ -508,11 +508,11 @@ const Onboarding = () => {
                                 <div className="relative">
                                     <Shield size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" />
                                     <select 
-                                        className="input-field pl-12 appearance-none h-[56px] font-bold cursor-pointer transition-all hover:border-blue-500/30"
+                                        className="input-field pl-12 appearance-none h-[56px] font-bold cursor-pointer transition-all hover:border-blue-500/30 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                                         value={currentRow.lookback}
                                         onChange={(e) => setCurrentRow({...currentRow, lookback: e.target.value})}
                                     >
-                                        {LOOKBACK_OPTIONS.map(l => <option key={l} value={l} className="bg-slate-900">Last {l}</option>)}
+                                        {LOOKBACK_OPTIONS.map(l => <option key={l} value={l}>Last {l}</option>)}
                                     </select>
                                     <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
                                 </div>
@@ -542,13 +542,13 @@ const Onboarding = () => {
                                 {rows.map((row) => (
                                     <motion.div 
                                         key={row.id}
-                                        className={`flex flex-col md:flex-row items-center gap-6 p-6 rounded-3xl border border-white/5 bg-white/[0.02] transition-all ${row.enabled ? 'border-blue-500/20' : 'opacity-60 grayscale'}`}
+                                        className={`flex flex-col md:flex-row items-center gap-6 p-6 rounded-3xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/[0.02] transition-all ${row.enabled ? 'border-blue-500/20' : 'opacity-60 grayscale'}`}
                                     >
                                         <div className="flex-1 min-w-0">
                                             <div className="flex flex-wrap gap-2 mb-2">
                                                 {row.roles.map(r => <span key={r} className="text-[9px] font-black text-white bg-blue-600/20 px-2 py-0.5 rounded border border-blue-500/20 uppercase">{r}</span>)}
                                             </div>
-                                            <p className="text-xs text-slate-300 font-bold">
+                                            <p className="text-xs text-slate-700 dark:text-slate-300 font-bold">
                                                 {row.locations.slice(0, 3).join(', ')}{row.locations.length > 3 && ` +${row.locations.length - 3} more`}
                                             </p>
                                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
@@ -556,13 +556,13 @@ const Onboarding = () => {
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <div className="text-right pr-4 border-r border-white/5 hidden md:block">
+                                            <div className="text-right pr-4 border-r border-slate-200 dark:border-white/5 hidden md:block">
                                                 <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Interval</p>
-                                                <p className="text-white font-black text-xs">{row.interval}</p>
+                                                <p className="text-slate-900 dark:text-white font-black text-xs transition-colors">{row.interval}</p>
                                             </div>
                                             <button 
                                                 onClick={() => editRow(row)}
-                                                className="p-3 bg-white/5 text-slate-400 rounded-xl hover:bg-white/10 transition-all"
+                                                className="p-3 bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-300 dark:hover:bg-white/10 transition-all"
                                                 title="Edit Row"
                                             >
                                                 <Edit3 size={18} />

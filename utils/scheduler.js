@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const admin = require('../lib/firebase-admin');
+const supabase = require('../lib/supabase');
 const { runUserScrape } = require('./scraper');
 const { sendReportEmail } = require('./email');
 const { decryptKey } = require('./crypto');
@@ -15,21 +15,25 @@ function initScheduler() {
     cron.schedule('*/30 * * * *', async () => {
         console.log('--- Master Scheduler Run Start ---');
         const now = Date.now();
-        const db = admin.firestore();
 
         try {
-            const usersSnapshot = await db.collection('users')
-                .where('isEnabled', '==', true)
-                .get();
+            const { data: users, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('is_enabled', true);
 
-            if (usersSnapshot.empty) {
+            if (error) {
+                console.error('Scheduler DB error:', error.message);
+                return;
+            }
+
+            if (!users || users.length === 0) {
                 console.log('No users with automation enabled.');
                 return;
             }
 
-            for (const userDoc of usersSnapshot.docs) {
-                const userData = userDoc.data();
-                const userId = userDoc.id;
+            for (const userData of users) {
+                const userId = userData.uid;
                 const preferenceSets = userData.preferences?.preferenceSets || [];
 
                 if (preferenceSets.length === 0) continue;
@@ -41,15 +45,13 @@ function initScheduler() {
                     const set = updatedPreferenceSets[i];
                     if (!set.enabled) continue;
 
-                    // Robust timestamp conversion (Fix Issue #5)
+                    // Robust timestamp conversion
                     let lastScrapedAt = 0;
                     if (set.lastScrapedAt) {
                         if (typeof set.lastScrapedAt === 'number') {
                             lastScrapedAt = set.lastScrapedAt;
                         } else if (typeof set.lastScrapedAt === 'string') {
                             lastScrapedAt = new Date(set.lastScrapedAt).getTime();
-                        } else if (set.lastScrapedAt.toMillis) {
-                            lastScrapedAt = set.lastScrapedAt.toMillis();
                         } else if (set.lastScrapedAt._seconds) {
                             lastScrapedAt = set.lastScrapedAt._seconds * 1000;
                         }
@@ -63,7 +65,7 @@ function initScheduler() {
                         
                         try {
                             // Decrypt key for background run
-                            const decryptedKey = decryptKey(userData.apifyKey);
+                            const decryptedKey = decryptKey(userData.apify_key);
 
                             // 1. Run scrape for this specific set
                             const results = await runUserScrape(decryptedKey, {
@@ -82,23 +84,34 @@ function initScheduler() {
                                     workTypes: set.workTypes
                                 });
 
-                                // 3. Store results in Firestore so user can see them on dashboard (Fix CORE BUG)
-                                const resultsBatch = db.batch();
-                                results.slice(0, 20).forEach(result => {
-                                    const resultRef = userDoc.ref.collection('results').doc();
-                                    resultsBatch.set(resultRef, {
-                                        ...result,
-                                        storedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                        preferenceSetId: set.id
-                                    });
-                                });
-                                await resultsBatch.commit();
+                                // 3. Store results in Supabase
+                                const resultRows = results.slice(0, 20).map(result => ({
+                                    user_uid: userId,
+                                    title: result.title,
+                                    company: result.company,
+                                    url: result.url,
+                                    source: result.source,
+                                    domain: result.domain,
+                                    description: result.description?.substring(0, 500),
+                                    type: result.type,
+                                    location: result.location,
+                                    match_score: result.matchScore || 0,
+                                    preference_set_id: set.id,
+                                    scraped_at: result.scrapedAt || new Date().toISOString(),
+                                    stored_at: new Date().toISOString()
+                                }));
+
+                                const { error: insertErr } = await supabase
+                                    .from('results')
+                                    .insert(resultRows);
+
+                                if (insertErr) console.error('[Scheduler] Failed to store results:', insertErr.message);
                             }
                             
                             // 4. Update set stats
                             updatedPreferenceSets[i] = {
                                 ...set,
-                                lastScrapedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                lastScrapedAt: new Date().toISOString(),
                                 totalScrapes: (set.totalScrapes || 0) + 1
                             };
                             userUpdated = true;
@@ -111,11 +124,25 @@ function initScheduler() {
                 }
 
                 if (userUpdated) {
-                    await userDoc.ref.update({
-                        'preferences.preferenceSets': updatedPreferenceSets,
-                        'stats.totalScrapes': admin.firestore.FieldValue.increment(1),
-                        'stats.lastScrape': admin.firestore.FieldValue.serverTimestamp()
-                    });
+                    const currentStats = userData.stats || { totalScrapes: 0, totalSent: 0 };
+                    
+                    const { error: updateErr } = await supabase
+                        .from('users')
+                        .update({
+                            preferences: {
+                                ...userData.preferences,
+                                preferenceSets: updatedPreferenceSets
+                            },
+                            stats: {
+                                ...currentStats,
+                                totalScrapes: (currentStats.totalScrapes || 0) + 1,
+                                lastScrape: new Date().toISOString()
+                            },
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('uid', userId);
+
+                    if (updateErr) console.error(`[Scheduler] Failed to update user ${userData.email}:`, updateErr.message);
                 }
             }
         } catch (error) {

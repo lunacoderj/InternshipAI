@@ -6,6 +6,7 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 const { body, validationResult } = require('express-validator');
 const admin = require('./lib/firebase-admin');
+const supabase = require('./lib/supabase');
 const verifyToken = require('./middleware/auth');
 const { initScheduler } = require('./utils/scheduler');
 const { sendReportEmail, sendTestEmail } = require('./utils/email');
@@ -88,14 +89,20 @@ initScheduler();
 
 app.get('/api/user/profile', verifyToken, async (req, res) => {
     try {
-        const userDoc = await admin.firestore().collection('users').doc(req.user.uid).get();
-        if (!userDoc.exists) {
+        const { data: userData, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('uid', req.user.uid)
+            .single();
+
+        if (error || !userData) {
             return res.json({ onboardingRequired: true });
         }
-        const data = userDoc.data();
+
+        const data = { ...userData };
         
         // Decrypt key if encrypted before masking
-        let rawKey = data.apifyKey;
+        let rawKey = data.apify_key;
         if (rawKey && rawKey.includes(':')) {
             rawKey = decryptKey(rawKey);
         }
@@ -104,8 +111,18 @@ app.get('/api/user/profile', verifyToken, async (req, res) => {
         if (rawKey) {
             data.apifyKey = rawKey.substring(0, 8) + '****************' + rawKey.substring(rawKey.length - 4);
         }
-        
-        res.json(data);
+
+        // Map snake_case DB fields to camelCase for frontend compatibility
+        res.json({
+            uid: data.uid,
+            email: data.email,
+            displayName: data.display_name,
+            apifyKey: data.apifyKey,
+            preferences: data.preferences,
+            onboardingRequired: data.onboarding_required,
+            isEnabled: data.is_enabled,
+            stats: data.stats,
+        });
 
     } catch (error) {
         console.error('Profile fetch error:', error);
@@ -129,36 +146,43 @@ app.post('/api/user/preferences',
         const { apifyKey, preferences, onboardingRequired, isEnabled } = req.body;
         
         try {
-            const userDoc = await admin.firestore().collection('users').doc(req.user.uid).get();
+            // Fetch existing user to check for masked key
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('apify_key')
+                .eq('uid', req.user.uid)
+                .single();
+
             let encryptedKey;
             
             // If the key is masked, keep the existing one as-is
-            if (apifyKey && apifyKey.includes('****') && userDoc.exists) {
-                encryptedKey = userDoc.data().apifyKey;
+            if (apifyKey && apifyKey.includes('****') && existingUser) {
+                encryptedKey = existingUser.apify_key;
             } else if (apifyKey) {
                 const isValid = await validateApifyKey(apifyKey);
                 if (!isValid) return res.status(400).json({ error: 'Invalid Apify API Key' });
                 encryptedKey = encryptKey(apifyKey);
-            } else if (userDoc.exists) {
-                encryptedKey = userDoc.data().apifyKey;
+            } else if (existingUser) {
+                encryptedKey = existingUser.apify_key;
             }
 
             const userData = {
                 uid: req.user.uid,
                 email: req.user.email?.toLowerCase(),
-                displayName: req.user.name || '',
-                apifyKey: encryptedKey,
+                display_name: req.user.name || '',
+                apify_key: encryptedKey,
                 preferences,
-                onboardingRequired: onboardingRequired ?? false,
-                isEnabled: isEnabled ?? true,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                onboarding_required: onboardingRequired ?? false,
+                is_enabled: isEnabled ?? true,
+                updated_at: new Date().toISOString()
             };
 
-            await admin.firestore().collection('users').doc(req.user.uid).set(userData, { merge: true });
+            // Upsert: insert if not exists, update if exists
+            const { error } = await supabase
+                .from('users')
+                .upsert(userData, { onConflict: 'uid' });
 
-            
-            // Send connection confirmation email if this is the first time or if requested
-            // await sendTestEmail(req.user.email);
+            if (error) throw error;
 
             res.json({ message: 'Configuration synchronized successfully' });
         } catch (error) {
@@ -170,35 +194,129 @@ app.post('/api/user/preferences',
 
 app.get('/api/user/results', verifyToken, async (req, res) => {
     try {
-        const resultsSnapshot = await admin.firestore()
-            .collection('users')
-            .doc(req.user.uid)
-            .collection('results')
-            .orderBy('storedAt', 'desc')
-            .limit(50)
-            .get();
+        const { data: results, error } = await supabase
+            .from('results')
+            .select('*')
+            .eq('user_uid', req.user.uid)
+            .order('stored_at', { ascending: false })
+            .limit(50);
 
-        const results = resultsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
+        if (error) throw error;
+
+        // Map to camelCase for frontend compatibility
+        const mapped = (results || []).map(r => ({
+            id: r.id,
+            title: r.title,
+            company: r.company,
+            url: r.url,
+            source: r.source,
+            domain: r.domain,
+            description: r.description,
+            type: r.type,
+            location: r.location,
+            matchScore: r.match_score,
+            preferenceSetId: r.preference_set_id,
+            scrapedAt: r.scraped_at,
+            storedAt: r.stored_at
         }));
-        res.json(results);
+
+        res.json(mapped);
     } catch (error) {
         console.error('Results fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch results' });
     }
 });
 
+app.delete('/api/user/results', verifyToken, async (req, res) => {
+    try {
+        const { error } = await supabase
+            .from('results')
+            .delete()
+            .eq('user_uid', req.user.uid);
+
+        if (error) throw error;
+        
+        res.json({ message: 'Feed cleared successfully' });
+    } catch (error) {
+        console.error('Clear feed error:', error);
+        res.status(500).json({ error: 'Failed to clear feed' });
+    }
+});
+
+// Add a job to applied list
+app.post('/api/user/applied', verifyToken, async (req, res) => {
+    try {
+        const { job } = req.body;
+        
+        const { data: user } = await supabase
+            .from('users')
+            .select('preferences')
+            .eq('uid', req.user.uid)
+            .single();
+
+        const currentPrefs = user?.preferences || {};
+        const appliedJobs = currentPrefs.appliedJobs || [];
+        
+        // Prevent duplicates
+        if (!appliedJobs.find(j => j.id === job.id)) {
+            appliedJobs.unshift({
+                ...job,
+                appliedAt: new Date().toISOString()
+            });
+            
+            await supabase
+                .from('users')
+                .update({ preferences: { ...currentPrefs, appliedJobs } })
+                .eq('uid', req.user.uid);
+        }
+
+        res.json({ message: 'Marked as applied' });
+    } catch (error) {
+        console.error('Add applied job error:', error);
+        res.status(500).json({ error: 'Failed to mark as applied' });
+    }
+});
+
+// Remove a job from applied list
+app.delete('/api/user/applied/:jobId', verifyToken, async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        
+        const { data: user } = await supabase
+            .from('users')
+            .select('preferences')
+            .eq('uid', req.user.uid)
+            .single();
+
+        const currentPrefs = user?.preferences || {};
+        const appliedJobs = (currentPrefs.appliedJobs || []).filter(j => j.id !== jobId);
+        
+        await supabase
+            .from('users')
+            .update({ preferences: { ...currentPrefs, appliedJobs } })
+            .eq('uid', req.user.uid);
+
+        res.json({ message: 'Removed from applied' });
+    } catch (error) {
+        console.error('Remove applied job error:', error);
+        res.status(500).json({ error: 'Failed to remove applied job' });
+    }
+});
+
 app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) => {
     console.log(`[ROUTE] Incoming scrape request from user: ${req.user.uid}`);
     try {
-        const userDoc = await admin.firestore().collection('users').doc(req.user.uid).get();
-        if (!userDoc.exists || !userDoc.data().apifyKey) {
+        const { data: userData, error: fetchErr } = await supabase
+            .from('users')
+            .select('*')
+            .eq('uid', req.user.uid)
+            .single();
+
+        if (fetchErr || !userData || !userData.apify_key) {
             return res.status(400).json({ error: 'System not configured. Please complete onboarding.' });
         }
 
-        const userData = userDoc.data();
-        const decryptedKey = decryptKey(userData.apifyKey);
+        const decryptedKey = decryptKey(userData.apify_key);
         
         console.log(`[DEBUG] User Preferences: ${JSON.stringify(userData.preferences, null, 2)}`);
         
@@ -208,8 +326,6 @@ app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) =>
         if (preferenceSets.length > 0) {
             console.log(`[DEBUG] Processing ${preferenceSets.length} preference sets for manual scrape`);
             for (const set of preferenceSets) {
-                // For manual "Scrape Now", we ignore the 'enabled' flag 
-                // because the user explicitly requested an immediate scan.
                 console.log(`[DEBUG] Executing scrape for set: ${set.id || set.name} (Force Enabled for manual request)`);
                 
                 const setResults = await runUserScrape(decryptedKey, {
@@ -230,35 +346,56 @@ app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) =>
         
         const uniqueResults = Array.from(new Map(allResults.map(item => [item.url, item])).values());
 
-        // Update stats and preference set timestamps
-        const userRef = admin.firestore().collection('users').doc(req.user.uid);
-        const db = admin.firestore();
-        
-        // Prepare batch updates
-        const resultsBatch = db.batch();
-        
-        // 1. Save top 20 results to Firestore (Fix Issue: results disappearing on reload)
-        uniqueResults.slice(0, 20).forEach(result => {
-            const resultRef = userRef.collection('results').doc();
-            resultsBatch.set(resultRef, {
-                ...result,
-                storedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        });
+        // Save top 20 results to Supabase
+        if (uniqueResults.length > 0) {
+            const resultRows = uniqueResults.slice(0, 20).map(result => ({
+                user_uid: req.user.uid,
+                title: result.title,
+                company: result.company,
+                url: result.url,
+                source: result.source,
+                domain: result.domain,
+                description: result.description?.substring(0, 500),
+                type: result.type,
+                location: result.location,
+                match_score: result.matchScore || 0,
+                scraped_at: result.scrapedAt || new Date().toISOString(),
+                stored_at: new Date().toISOString()
+            }));
 
-        // 2. Update preference sets lastScrapedAt to prevent immediate re-trigger by scheduler
+            const { error: insertErr } = await supabase
+                .from('results')
+                .insert(resultRows);
+
+            if (insertErr) console.error('[DB] Failed to store results:', insertErr.message);
+        }
+
+        // Update preference sets lastScrapedAt and stats
+        const now = new Date().toISOString();
         const updatedPreferenceSets = preferenceSets.map(set => ({
             ...set,
-            lastScrapedAt: admin.firestore.FieldValue.serverTimestamp()
+            lastScrapedAt: now
         }));
 
-        await userRef.update({
-            'preferences.preferenceSets': updatedPreferenceSets,
-            'stats.totalScrapes': admin.firestore.FieldValue.increment(1),
-            'stats.lastScrape': admin.firestore.FieldValue.serverTimestamp()
-        });
+        const currentStats = userData.stats || { totalScrapes: 0, totalSent: 0 };
 
-        await resultsBatch.commit();
+        const { error: updateErr } = await supabase
+            .from('users')
+            .update({
+                preferences: {
+                    ...userData.preferences,
+                    preferenceSets: updatedPreferenceSets
+                },
+                stats: {
+                    ...currentStats,
+                    totalScrapes: (currentStats.totalScrapes || 0) + 1,
+                    lastScrape: now
+                },
+                updated_at: now
+            })
+            .eq('uid', req.user.uid);
+
+        if (updateErr) console.error('[DB] Failed to update stats:', updateErr.message);
 
         res.json({ 
             message: 'Pulse search completed', 
@@ -275,9 +412,24 @@ app.post('/api/user/scrape-now', verifyToken, scrapeLimiter, async (req, res) =>
                         console.error(`[MAIL] Dispatch failed: ${emailRes.error}`);
                     } else {
                         console.log(`[MAIL] Dispatch successful: ${emailRes?.id || 'OK'}`);
-                        await userRef.update({
-                            'stats.totalSent': admin.firestore.FieldValue.increment(1)
-                        });
+                        // Update totalSent
+                        const { data: freshUser } = await supabase
+                            .from('users')
+                            .select('stats')
+                            .eq('uid', req.user.uid)
+                            .single();
+                        
+                        if (freshUser) {
+                            await supabase
+                                .from('users')
+                                .update({
+                                    stats: {
+                                        ...freshUser.stats,
+                                        totalSent: (freshUser.stats?.totalSent || 0) + 1
+                                    }
+                                })
+                                .eq('uid', req.user.uid);
+                        }
                     }
                 })
                 .catch(err => console.error('[MAIL] Fatal error during manual report dispatch:', err.message || err));
@@ -300,8 +452,7 @@ app.listen(PORT, () => {
 
 const axios = require('axios');
 
-// Ping the server every 14 minutes (840000 milliseconds)
-// Free tiers usually sleep after 15 minutes of inactivity
+// Ping the server every 6 hours to keep it alive
 setInterval(async () => {
     try {
         await axios.get("https://internshipai.onrender.com/health-check");

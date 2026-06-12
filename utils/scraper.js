@@ -9,7 +9,11 @@ const invalidIndicators = [
     'twitter.com',
     'tiktok.com',
     'amazon.com/vdp',
-    'linkedin.com/posts',
+    'linkedin.com',
+    'indeed.com',
+    'internshala',
+    'unstop.com',
+    'naukri.com',
     'google.com/search'
 ];
 

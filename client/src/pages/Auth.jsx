@@ -110,7 +110,7 @@ const Auth = () => {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-slate-950">
+        <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-transparent">
             {/* Background Decorations */}
             <div className="bg-mesh opacity-30 absolute inset-0 z-0" />
             <motion.div 
@@ -180,6 +180,7 @@ const Auth = () => {
                                     type="email" 
                                     className="input-field pl-12"
                                     placeholder="elon@mars.com"
+                                    autoComplete="email"
                                     value={formData.email}
                                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                                     required
@@ -194,6 +195,7 @@ const Auth = () => {
                                     type="password" 
                                     className="input-field pl-12"
                                     placeholder="••••••••"
+                                    autoComplete="current-password"
                                     value={formData.password}
                                     onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     required

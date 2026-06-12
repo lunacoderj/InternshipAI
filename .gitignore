@@ -10,9 +10,14 @@ build/
 # Environment variables
 .env
 .env.local
+.env.example
 .env.development.local
 .env.test.local
 .env.production.local
+client/.env
+client/.env.local
+client/.env.example
+client/.env.production.local
 
 # Logs
 npm-debug.log*

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 const Layout = ({ children }) => {
     return (
-        <div className="min-h-screen bg-slate-950 flex flex-col">
+        <div className="min-h-screen flex flex-col">
             <Navbar />
             <motion.div 
                 initial={{ opacity: 0, y: 20 }}
